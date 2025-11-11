@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     # Default False for security; set to True only if you really need cookies/credentials.
     cors_allow_credentials: bool = False
     
+    # AI Configuration
+    ai_provider: str = "gemini"
+    ai_provider_api_key: str | None = None
+    
     class Config:
         env_file = ".env"
 

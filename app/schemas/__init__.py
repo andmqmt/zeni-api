@@ -6,6 +6,10 @@ from .transaction import (
     SuggestCategoryRequest,
     SuggestCategoryResponse,
 )
+from .smart_transaction import (
+    SmartTransactionRequest,
+    SmartTransactionResponse,
+)
 from .auth import (
     UserRegister,
     UserLogin,
@@ -33,6 +37,8 @@ __all__ = [
     "DailyBalanceResponse",
     "SuggestCategoryRequest",
     "SuggestCategoryResponse",
+    "SmartTransactionRequest",
+    "SmartTransactionResponse",
     "UserRegister",
     "UserLogin",
     "UserResponse",

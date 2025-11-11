@@ -12,7 +12,9 @@ from app.schemas import (
     SuggestCategoryRequest,
     SuggestCategoryResponse,
 )
+from app.schemas.smart_transaction import SmartTransactionRequest, SmartTransactionResponse
 from app.services import TransactionService
+from app.services.smart_transaction_parser import get_smart_parser
 from app.repositories import TransactionRepository, CategoryRepository
 from app.infrastructure.database import User
 from app.api.dependencies import get_current_user
@@ -123,3 +125,33 @@ def delete_transaction(
         service.delete_transaction(transaction_id, current_user)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"detail": str(e), "code": "TRANSACTION_NOT_FOUND"})
+
+
+@router.post("/smart-parse", response_model=SmartTransactionResponse)
+def parse_smart_transaction(
+    request: SmartTransactionRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Parse natural language command into transaction data using AI.
+    
+    Examples:
+    - "gastei 50 reais no uber hoje"
+    - "recebi salario de 3500"
+    - "comprei no mercado 120 reais ontem"
+    - "netflix 45.90 assinatura"
+    """
+    parser = get_smart_parser()
+    result = parser.parse_command(request.command)
+    
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "detail": "Não foi possível processar o comando. Tente ser mais específico.",
+                "code": "PARSE_FAILED"
+            }
+        )
+    
+    return result
+
