@@ -21,26 +21,42 @@ class TransactionService:
         Auto-categorize a transaction using AI or rules.
         Returns category_id if found, None otherwise.
         """
-        if not self.category_repo or not settings.auto_categorize_enabled:
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"🔍 Auto-categorizing: '{description}' for user {user.id}")
+        
+        if not self.category_repo:
+            logger.warning("❌ No category_repo available")
+            return None
+            
+        if not settings.auto_categorize_enabled:
+            logger.warning("❌ Auto-categorize disabled in settings")
             return None
         
         if not getattr(user, "auto_categorize_enabled", True):
+            logger.warning(f"❌ Auto-categorize disabled for user {user.id}")
             return None
         
         # Get all user categories for AI context
         user_categories = self.category_repo.list_by_user(user.id)
         category_names = [cat.name for cat in user_categories]
         
+        logger.info(f"📋 Available categories: {category_names}")
+        
         # Try AI categorization first, with fallback to rules built-in
         category_name = self.ai_service.categorize(description, category_names)
         
         if category_name:
+            logger.info(f"✅ AI/Rules suggested: '{category_name}'")
             # Find or create the category
             existing = self.category_repo.get_by_name(user.id, category_name)
             if not existing:
+                logger.info(f"📝 Creating new category: '{category_name}'")
                 existing = self.category_repo.create(user.id, category_name, is_auto_generated=True)
             return existing.id
         
+        logger.warning(f"⚠️ No category found for: '{description}'")
         return None
 
     def create_transaction(self, transaction_data: TransactionCreate, user: User) -> Transaction:
