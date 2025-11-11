@@ -35,8 +35,8 @@ _RULES: List[Tuple[str, List[str]]] = [
     ("Alimentacao", ["restaurante", "lanchonete", "bar", "cafeteria", "padaria"]),
     ("Tarifas Bancarias", ["tarifa", "cesta", "manutencao de conta", "iof", "ted", "doc", "pix tarifa", "bancaria"]),
     ("Investimentos", ["investimento", "tesouro", "cdb", "lci", "lca", "acoes", "fundos", "renda fixa"]),
-    ("Renda: Salario", ["salario", "pagamento", "provento", "holerite"]),
-    ("Renda: Transferencias", ["pix recebido", "transferencia recebida", "deposito"]),
+    ("Salario", ["salario", "pagamento", "provento", "holerite"]),
+    ("Transferencias", ["pix recebido", "transferencia recebida", "deposito"]),
 ]
 
 # Peso base por categoria (pode ser ajustado futuramente se quisermos favorecer algumas categorias)

@@ -3,7 +3,7 @@ from app.services.auto_categorizer import suggest_category, suggest_category_exp
 
 @pytest.mark.parametrize("text, expected", [
     ("Uber corrida aeroporto", "Transporte"),
-    ("Pagamento salario empresa", "Renda: Salario"),
+    ("Pagamento salario empresa", "Salario"),
     ("Compra supermercado carrefour", "Supermercado"),
     ("Assinatura netflix premium", "Assinaturas"),
     ("Posto shell gasolina", "Combustivel"),
