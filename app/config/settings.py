@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 43200
     access_code: str
     auto_categorize_enabled: bool = True
+    cors_origins: str = ""  # Comma-separated list of allowed origins
     
     class Config:
         env_file = ".env"
