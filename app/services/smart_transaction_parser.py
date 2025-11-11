@@ -51,13 +51,24 @@ class SmartTransactionParser:
         Returns:
             SmartTransactionResponse or None if parsing fails
         """
-        if not self.enabled or not command.strip():
+        if not command or not command.strip():
+            logger.warning("⚠️ Empty command received")
+            return None
+            
+        if not self.enabled:
+            logger.warning("⚠️ AI parser is disabled")
             return None
         
         try:
-            return self._parse_with_ai(command)
+            logger.info(f"🔍 Parsing command: '{command[:50]}...'")
+            result = self._parse_with_ai(command)
+            if result:
+                logger.info(f"✅ Successfully parsed: {result.description} - R${result.amount}")
+            else:
+                logger.warning(f"⚠️ Failed to parse command: '{command[:50]}...'")
+            return result
         except Exception as e:
-            logger.error(f"❌ AI parsing failed: {e}")
+            logger.error(f"❌ AI parsing failed: {e}", exc_info=True)
             return None
     
     def _parse_with_ai(self, command: str) -> Optional[SmartTransactionResponse]:
@@ -113,17 +124,56 @@ Respond ONLY with valid JSON (no markdown, no explanation):
             import json
             data = json.loads(json_text)
             
-            # Validate and create response
+            logger.info(f"📊 Parsed JSON data: {data}")
+            
+            # Extract and validate fields
+            description = str(data.get('description', 'Transação'))[:255]
+            if not description.strip():
+                description = 'Transação'
+            
+            amount_value = data.get('amount', 0)
+            try:
+                amount = Decimal(str(amount_value))
+                if amount <= 0:
+                    logger.error(f"❌ Invalid amount: {amount}")
+                    return None
+            except Exception as e:
+                logger.error(f"❌ Failed to parse amount '{amount_value}': {e}")
+                return None
+            
+            transaction_type = data.get('type', 'expense')
+            if transaction_type not in ['income', 'expense']:
+                logger.error(f"❌ Invalid type: {transaction_type}")
+                return None
+            
+            # Parse date
+            date_str = data.get('transaction_date', today.isoformat())
+            try:
+                transaction_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to parse date '{date_str}', using today: {e}")
+                transaction_date = today
+            
+            category_name = data.get('category_name')
+            confidence = float(data.get('confidence', 0.5))
+            
+            # Validate confidence range
+            if confidence < 0:
+                confidence = 0.0
+            elif confidence > 1:
+                confidence = 1.0
+            
+            # Create response
             result = SmartTransactionResponse(
-                description=str(data.get('description', ''))[:255],
-                amount=Decimal(str(data.get('amount', 0))),
-                type=data.get('type', 'expense'),
-                transaction_date=datetime.strptime(data.get('transaction_date', today.isoformat()), '%Y-%m-%d').date(),
-                category_name=data.get('category_name'),
-                confidence=float(data.get('confidence', 0.5))
+                description=description,
+                amount=amount,
+                type=transaction_type,
+                transaction_date=transaction_date,
+                category_name=category_name,
+                confidence=confidence
             )
             
-            logger.info(f"✅ Parsed command: '{command[:30]}...' → {result.description} ({result.amount})")
+            logger.info(f"✅ Parsed command: '{command[:30]}...' → {result.description} (R${result.amount})")
             return result
             
         except Exception as e:

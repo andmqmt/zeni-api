@@ -160,19 +160,18 @@ class TransactionService:
                     status = "unconfigured"
                 else:
                     bal = float(current_balance)
-                    # Mapeamento conforme contrato sugerido pelo front (ajustado):
-                    # balance >= good_threshold => green
-                    # balance >= ok_threshold => yellow
-                    # balance >= bad_threshold => red
-                    # balance < bad_threshold => red (continua vermelho)
-                    if bal >= good_t:
-                        status = "green"
-                    elif bal >= ok_t:
+                    # Lógica: valor <= threshold indica nível
+                    # Exemplo: bad=3000, ok=5000, good=8000
+                    # - balance <= 3000 => red (ruim)
+                    # - balance <= 5000 => yellow (médio)
+                    # - balance <= 8000 => green (bom)
+                    # - balance > 8000 => green (também bom)
+                    if bal <= bad_t:
+                        status = "red"
+                    elif bal <= ok_t:
                         status = "yellow"
-                    elif bal >= bad_t:
-                        status = "red"
                     else:
-                        status = "red"
+                        status = "green"
 
                 daily_balances.append({
                     "date": current_date.isoformat(),
