@@ -1,0 +1,172 @@
+from typing import List, Dict, Optional
+from datetime import date, timedelta
+from decimal import Decimal
+
+from app.repositories import TransactionRepository, CategoryRepository
+from app.infrastructure.database import Transaction, TransactionType, User
+from .auto_categorizer import suggest_category
+from app.config import settings
+from app.schemas.transaction import TransactionCreate, TransactionUpdate
+
+
+class TransactionService:
+    def __init__(self, repository: TransactionRepository, category_repo: CategoryRepository | None = None):
+        self.repository = repository
+        self.category_repo = category_repo
+
+    def create_transaction(self, transaction_data: TransactionCreate, user: User) -> Transaction:
+        transaction = Transaction(
+            user_id=user.id,
+            description=transaction_data.description,
+            amount=transaction_data.amount,
+            type=transaction_data.type,
+            transaction_date=transaction_data.transaction_date,
+            category_id=transaction_data.category_id,
+        )
+        # Auto-categorize if no category was provided and feature enabled
+        if (
+            transaction.category_id is None
+            and self.category_repo is not None
+            and settings.auto_categorize_enabled
+            and getattr(user, "auto_categorize_enabled", True)
+        ):
+            name = suggest_category(transaction.description)
+            if name:
+                existing = self.category_repo.get_by_name(user.id, name)
+                if not existing:
+                    existing = self.category_repo.create(user.id, name, is_auto_generated=True)
+                transaction.category_id = existing.id
+        return self.repository.create(transaction)
+
+    def get_transaction(self, transaction_id: int, user: User) -> Transaction:
+        transaction = self.repository.get_by_id(transaction_id)
+        if not transaction:
+            raise ValueError(f"Transação com id {transaction_id} não encontrada")
+        if transaction.user_id != user.id:
+            raise ValueError("Você não tem permissão para acessar esta transação")
+        return transaction
+
+    def list_transactions(
+        self,
+        user: User,
+        skip: int = 0,
+        limit: int = 100,
+        on_date: Optional[date] = None,
+        category_id: Optional[int] = None,
+    ) -> List[Transaction]:
+        return self.repository.get_by_user(
+            user.id, skip=skip, limit=limit, on_date=on_date, category_id=category_id
+        )
+
+    def update_transaction(self, transaction_id: int, transaction_data: TransactionUpdate, user: User) -> Transaction:
+        transaction = self.repository.get_by_id(transaction_id)
+        if not transaction:
+            raise ValueError(f"Transação com id {transaction_id} não encontrada")
+        if transaction.user_id != user.id:
+            raise ValueError("Você não tem permissão para atualizar esta transação")
+        
+        updates = transaction_data.model_dump(exclude_unset=True)
+        # Only auto-categorize if user didn't set a category AND the transaction currently has no category
+        if (
+            'category_id' not in updates
+            and 'description' in updates
+            and self.category_repo is not None
+            and settings.auto_categorize_enabled
+            and getattr(user, 'auto_categorize_enabled', True)
+            and getattr(transaction, 'category_id', None) is None
+        ):
+            name = suggest_category(updates['description'])
+            if name:
+                existing = self.category_repo.get_by_name(user.id, name)
+                if not existing:
+                    existing = self.category_repo.create(user.id, name, is_auto_generated=True)
+                updates['category_id'] = existing.id
+        transaction = self.repository.update(transaction_id, updates)
+        return transaction
+
+    def delete_transaction(self, transaction_id: int, user: User) -> bool:
+        transaction = self.repository.get_by_id(transaction_id)
+        if not transaction:
+            raise ValueError(f"Transação com id {transaction_id} não encontrada")
+        if transaction.user_id != user.id:
+            raise ValueError("Você não tem permissão para deletar esta transação")
+        
+        return self.repository.delete(transaction_id)
+
+    def calculate_daily_balance(self, year: int, month: int, user: User) -> List[Dict]:
+        try:
+            start_date = date(year, month, 1)
+            
+            if month == 12:
+                end_date = date(year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end_date = date(year, month + 1, 1) - timedelta(days=1)
+            
+            transactions = self.repository.get_by_date_range_and_user(start_date, end_date, user.id)
+            
+            daily_balances = []
+            current_balance = Decimal("0.00")
+            
+            transactions_by_date = {}
+            for transaction in transactions:
+                if transaction.transaction_date not in transactions_by_date:
+                    transactions_by_date[transaction.transaction_date] = []
+                transactions_by_date[transaction.transaction_date].append(transaction)
+            
+            current_date = start_date
+            # Capturar preferências do usuário
+            bad_t = user.bad_threshold
+            ok_t = user.ok_threshold
+            good_t = user.good_threshold
+
+            # Regra de negócio garante thresholds crescentes no momento da configuração.
+            # Se houver qualquer inconsistência (ex: manipulação direta no banco), marcamos como 'unconfigured'.
+            if (
+                bad_t is not None and ok_t is not None and good_t is not None and
+                not (bad_t <= ok_t <= good_t)
+            ):
+                bad_t = ok_t = good_t = None  # Força status 'unconfigured'
+
+            while current_date <= end_date:
+                if current_date in transactions_by_date:
+                    for transaction in transactions_by_date[current_date]:
+                        if transaction.type == TransactionType.INCOME:
+                            current_balance += transaction.amount
+                        else:
+                            current_balance -= transaction.amount
+
+                # Determinar status com base nas preferências (FORA do if)
+                status = None
+                if bad_t is None or ok_t is None or good_t is None:
+                    status = "unconfigured"
+                else:
+                    bal = float(current_balance)
+                    # Mapeamento conforme contrato sugerido pelo front (ajustado):
+                    # balance >= good_threshold => green
+                    # balance >= ok_threshold => yellow
+                    # balance >= bad_threshold => red
+                    # balance < bad_threshold => red (continua vermelho)
+                    if bal >= good_t:
+                        status = "green"
+                    elif bal >= ok_t:
+                        status = "yellow"
+                    elif bal >= bad_t:
+                        status = "red"
+                    else:
+                        status = "red"
+
+                daily_balances.append({
+                    "date": current_date.isoformat(),
+                    "balance": float(current_balance),
+                    "status": status,
+                })
+                
+                current_date += timedelta(days=1)
+            
+            return daily_balances
+        except Exception as e:
+            # Log temporário para debug
+            import traceback
+            print(f"ERROR in calculate_daily_balance: {e}")
+            print(traceback.format_exc())
+            raise
