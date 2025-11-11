@@ -15,17 +15,39 @@ app = FastAPI(
 )
 
 # Configure CORS with restricted origins for production
-allowed_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
+raw_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
 
-print(f"🔒 CORS configured with allowed origins: {allowed_origins}")
+# If no origins configured, we intentionally keep the list empty (no cross-origin allowed).
+# In production you MUST set the `CORS_ORIGINS` environment variable (comma-separated).
+if not raw_origins:
+    print("⚠️  No CORS origins configured (CORS_ORIGINS empty). Cross-origin requests will be blocked by default.")
+
+# Support wildcard '*' explicitly (use only in controlled environments)
+allow_all = any(origin == "*" for origin in raw_origins)
+
+if allow_all:
+    allowed_origins = ["*"]
+else:
+    allowed_origins = raw_origins
+
+# Decide whether to allow credentials. Prefer explicit config via settings.cors_allow_credentials.
+# If allow_all is enabled and credentials would be allowed, Starlette/ browsers cannot use '*' with credentials,
+# so force credentials off and warn.
+allow_credentials = bool(settings.cors_allow_credentials)
+if allow_all and allow_credentials:
+    print("⚠️  CORS configured with allow_origins='*' and allow_credentials=True: this is incompatible. Forcing allow_credentials=False for safety.")
+    allow_credentials = False
+
+print(f"🔒 CORS configured with allowed origins: {allowed_origins} allow_credentials={allow_credentials}")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=True,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
+    # Expose a minimal safe set of headers to the browser. Avoid exposing sensitive headers unnecessarily.
+    expose_headers=["Content-Type", "Content-Length", "X-Request-ID", "Location"],
     max_age=3600,
 )
 

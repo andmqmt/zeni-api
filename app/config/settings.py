@@ -10,7 +10,11 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 43200
     access_code: str
     auto_categorize_enabled: bool = True
-    cors_origins: str = ""  # Comma-separated list of allowed origins
+    # Comma-separated list of allowed origins, e.g. "https://app.example.com,https://admin.example.com"
+    cors_origins: str = ""
+    # Whether to allow credentials (cookies, Authorization headers with credentials).
+    # Default False for security; set to True only if you really need cookies/credentials.
+    cors_allow_credentials: bool = False
     
     class Config:
         env_file = ".env"
