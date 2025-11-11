@@ -29,11 +29,11 @@ def register(
         # Padroniza mensagem de erro para frontend e mapeia conflitos
         msg = str(e)
         if "E-mail" in msg and "cadastrado" in msg:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"detail": "Email already in use", "code": "EMAIL_CONFLICT"})
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"detail": "E-mail já está em uso", "code": "EMAIL_CONFLICT"})
         if "Telefone" in msg and "cadastrado" in msg:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"detail": "Phone already in use", "code": "PHONE_CONFLICT"})
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"detail": "Telefone já está em uso", "code": "PHONE_CONFLICT"})
         if "Código de acesso" in msg and "inválido" in msg:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"detail": "Invalid access code", "code": "INVALID_ACCESS_CODE"})
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"detail": "Código de acesso inválido", "code": "INVALID_ACCESS_CODE"})
         # Fallback
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"detail": msg, "code": "REGISTRATION_ERROR"})
 

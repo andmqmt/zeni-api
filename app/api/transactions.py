@@ -141,17 +141,38 @@ def parse_smart_transaction(
     - "comprei no mercado 120 reais ontem"
     - "netflix 45.90 assinatura"
     """
-    parser = get_smart_parser()
-    result = parser.parse_command(request.command)
+    import logging
+    logger = logging.getLogger(__name__)
     
-    if not result:
+    logger.info(f"📥 Smart parse request from user {current_user.id}: '{request.command}'")
+    
+    try:
+        parser = get_smart_parser()
+        logger.info(f"Parser enabled: {parser.enabled}, provider: {parser.provider}")
+        
+        result = parser.parse_command(request.command)
+        
+        if not result:
+            logger.warning(f"⚠️ Failed to parse command: '{request.command}'")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "detail": "Não foi possível processar o comando. Tente ser mais específico.",
+                    "code": "PARSE_FAILED"
+                }
+            )
+        
+        logger.info(f"✅ Successfully parsed command for user {current_user.id}")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Unexpected error in smart parse: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
-                "detail": "Não foi possível processar o comando. Tente ser mais específico.",
-                "code": "PARSE_FAILED"
+                "detail": "Erro interno ao processar comando.",
+                "code": "INTERNAL_ERROR"
             }
         )
-    
-    return result
 

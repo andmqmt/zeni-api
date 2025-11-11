@@ -78,7 +78,7 @@ class AuthService:
         user = self.authenticate_user(identifier, password)
         if not user:
             # Mensagem padronizada para o frontend
-            raise ValueError("Invalid credentials")
+            raise ValueError("Credenciais inválidas")
 
         access_token = self.create_access_token(data={"sub": str(user.id)})
         return Token(access_token=access_token, token_type="bearer")
@@ -86,13 +86,13 @@ class AuthService:
     def get_current_user(self, token: str) -> User:
         token_data = self.decode_token(token)
         if token_data is None or token_data.user_id is None:
-            raise ValueError("Not authenticated")
+            raise ValueError("Não autenticado")
 
         user = self.user_repository.get_by_id(token_data.user_id)
         if user is None:
-            raise ValueError("Not authenticated")
+            raise ValueError("Não autenticado")
         
         if not user.is_active:
-            raise ValueError("Not authenticated")
+            raise ValueError("Não autenticado")
 
         return user

@@ -12,7 +12,7 @@ class CategoryService:
 
     def list_categories(self, user: User, origin: str | None = None) -> List[CategoryResponse]:
         if origin not in (None, 'auto', 'manual'):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"detail": "Invalid origin filter", "code": "INVALID_FILTER"})
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"detail": "Filtro de origem inválido", "code": "INVALID_FILTER"})
         cats = self.repo.list_by_user(user.id, origin=origin)
         return [CategoryResponse.model_validate(c) for c in cats]
 

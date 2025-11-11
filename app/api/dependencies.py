@@ -25,6 +25,6 @@ def get_current_user(
         # Padroniza resposta para o frontend
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"detail": "Not authenticated", "code": "NOT_AUTHENTICATED"},
+            detail={"detail": "Não autenticado", "code": "NOT_AUTHENTICATED"},
             headers={"WWW-Authenticate": "Bearer"},
         )
