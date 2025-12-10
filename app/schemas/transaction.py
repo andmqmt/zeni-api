@@ -14,7 +14,7 @@ class TransactionBase(BaseModel):
 
 
 class TransactionCreate(TransactionBase):
-    category_id: Optional[int] = None
+    pass
 
 
 class TransactionUpdate(BaseModel):
@@ -22,12 +22,10 @@ class TransactionUpdate(BaseModel):
     amount: Optional[Decimal] = Field(None, gt=0, decimal_places=2)
     type: Optional[TransactionType] = None
     transaction_date: Optional[date] = None
-    category_id: Optional[int] = None
 
 
 class TransactionResponse(TransactionBase):
     id: int
-    category_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -45,10 +43,3 @@ class DailyBalanceResponse(BaseModel):
     )
 
 
-class SuggestCategoryRequest(BaseModel):
-    description: str = Field(..., min_length=1, max_length=255)
-
-
-class SuggestCategoryResponse(BaseModel):
-    category: Optional[str]
-    matched_keyword: Optional[str]

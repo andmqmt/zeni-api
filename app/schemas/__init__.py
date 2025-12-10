@@ -3,8 +3,6 @@ from .transaction import (
     TransactionUpdate,
     TransactionResponse,
     DailyBalanceResponse,
-    SuggestCategoryRequest,
-    SuggestCategoryResponse,
 )
 from .smart_transaction import (
     SmartTransactionRequest,
@@ -24,10 +22,11 @@ from .user import (
     UserPreferencesUpdate,
     UserPreferencesInit
 )
-from .category import (
-    CategoryCreate,
-    CategoryUpdate,
-    CategoryResponse,
+from .insights import (
+    InsightResponse,
+    SpendingPattern,
+    InsightsSummary,
+    InsightsAnalysisResponse,
 )
 
 __all__ = [
@@ -35,8 +34,6 @@ __all__ = [
     "TransactionUpdate",
     "TransactionResponse",
     "DailyBalanceResponse",
-    "SuggestCategoryRequest",
-    "SuggestCategoryResponse",
     "SmartTransactionRequest",
     "SmartTransactionResponse",
     "UserRegister",
@@ -49,7 +46,8 @@ __all__ = [
     "UserPreferences",
     "UserPreferencesUpdate",
     "UserPreferencesInit",
-    "CategoryCreate",
-    "CategoryUpdate",
-    "CategoryResponse",
+    "InsightResponse",
+    "SpendingPattern",
+    "InsightsSummary",
+    "InsightsAnalysisResponse",
 ]

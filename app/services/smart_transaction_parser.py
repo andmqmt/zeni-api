@@ -91,12 +91,10 @@ Extract:
    - "hoje" or "today" = {today.isoformat()}
    - "ontem" or "yesterday" = {(today.replace(day=today.day-1) if today.day > 1 else today).isoformat()}
    - If no date mentioned, use today
-5. category_name: Best matching category (optional)
-   - Common categories: Transporte, Alimentacao, Supermercado, Delivery, Salario, Assinaturas, Compras, Energia, Agua, Internet, Combustivel, Farmacia, Academia, Restaurante
-6. confidence: Your confidence in this parsing (0-1)
+5. confidence: Your confidence in this parsing (0-1)
 
 Respond ONLY with valid JSON (no markdown, no explanation):
-{{"description": "...", "amount": 0.0, "type": "expense", "transaction_date": "YYYY-MM-DD", "category_name": "...", "confidence": 0.0}}"""
+{{"description": "...", "amount": 0.0, "type": "expense", "transaction_date": "YYYY-MM-DD", "confidence": 0.0}}"""
 
         try:
             response = self.model.generate_content(
@@ -154,7 +152,6 @@ Respond ONLY with valid JSON (no markdown, no explanation):
                 logger.warning(f"⚠️ Failed to parse date '{date_str}', using today: {e}")
                 transaction_date = today
             
-            category_name = data.get('category_name')
             confidence = float(data.get('confidence', 0.5))
             
             # Validate confidence range
@@ -163,13 +160,11 @@ Respond ONLY with valid JSON (no markdown, no explanation):
             elif confidence > 1:
                 confidence = 1.0
             
-            # Create response
             result = SmartTransactionResponse(
                 description=description,
                 amount=amount,
                 type=transaction_type,
                 transaction_date=transaction_date,
-                category_name=category_name,
                 confidence=confidence
             )
             

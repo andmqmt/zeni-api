@@ -25,13 +25,10 @@ class TransactionRepository:
         skip: int = 0,
         limit: int = 100,
         on_date: Optional[date] = None,
-        category_id: Optional[int] = None,
     ) -> List[Transaction]:
         q = self.db.query(Transaction).filter(Transaction.user_id == user_id)
         if on_date is not None:
             q = q.filter(Transaction.transaction_date == on_date)
-        if category_id is not None:
-            q = q.filter(Transaction.category_id == category_id)
         return (
             q.order_by(Transaction.transaction_date.desc(), Transaction.id.desc())
             .offset(skip)

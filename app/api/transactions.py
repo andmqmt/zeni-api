@@ -9,13 +9,11 @@ from app.schemas import (
     TransactionUpdate,
     TransactionResponse,
     DailyBalanceResponse,
-    SuggestCategoryRequest,
-    SuggestCategoryResponse,
 )
 from app.schemas.smart_transaction import SmartTransactionRequest, SmartTransactionResponse
 from app.services import TransactionService
 from app.services.smart_transaction_parser import get_smart_parser
-from app.repositories import TransactionRepository, CategoryRepository
+from app.repositories import TransactionRepository
 from app.infrastructure.database import User
 from app.api.dependencies import get_current_user
 
@@ -24,8 +22,7 @@ router = APIRouter(prefix="/transactions", tags=["transactions"])
 
 def get_transaction_service(db: Session = Depends(get_db)) -> TransactionService:
     repository = TransactionRepository(db)
-    category_repo = CategoryRepository(db)
-    return TransactionService(repository, category_repo)
+    return TransactionService(repository)
 
 
 @router.post("/", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
@@ -45,25 +42,12 @@ def list_transactions(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     on_date: date | None = Query(None, description="Filtrar por data exata (YYYY-MM-DD)"),
-    category_id: int | None = Query(None, ge=1, description="Filtrar por categoria (id)"),
     current_user: User = Depends(get_current_user),
     service: TransactionService = Depends(get_transaction_service)
 ):
     return service.list_transactions(
-        current_user, skip=skip, limit=limit, on_date=on_date, category_id=category_id
+        current_user, skip=skip, limit=limit, on_date=on_date
     )
-
-
-@router.post("/suggest-category", response_model=SuggestCategoryResponse)
-def suggest_category_endpoint(
-    payload: SuggestCategoryRequest,
-):
-    # Stateless suggestion; does not require auth nor create categories
-    from app.services.auto_categorizer import suggest_category_explain
-    result = suggest_category_explain(payload.description)
-    if not result:
-        return {"category": None, "matched_keyword": None}
-    return result
 
 
 @router.get("/balance/daily", response_model=List[DailyBalanceResponse])
