@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import date
@@ -156,6 +156,132 @@ def parse_smart_transaction(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
                 "detail": "Erro interno ao processar comando.",
+                "code": "INTERNAL_ERROR"
+            }
+        )
+
+
+@router.post("/smart-parse-image", response_model=SmartTransactionResponse)
+async def parse_image_transaction(
+    image: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Parse transaction data from an image (receipt, note, etc) using AI.
+    Supports: JPG, PNG, WEBP
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"📸 Image parse request from user {current_user.id}, filename: {image.filename}")
+    
+    if not image.content_type or not image.content_type.startswith('image/'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "detail": "Arquivo deve ser uma imagem válida (JPG, PNG, WEBP).",
+                "code": "INVALID_FILE_TYPE"
+            }
+        )
+    
+    try:
+        parser = get_smart_parser()
+        
+        if not parser.enabled:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "detail": "Serviço de AI não está disponível no momento.",
+                    "code": "AI_SERVICE_UNAVAILABLE"
+                }
+            )
+        
+        image_bytes = await image.read()
+        result = parser.parse_image(image_bytes, image.content_type)
+        
+        if not result:
+            logger.warning(f"⚠️ Failed to parse image from user {current_user.id}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "detail": "Não foi possível identificar dados da imagem. Tente uma foto mais clara.",
+                    "code": "PARSE_FAILED"
+                }
+            )
+        
+        logger.info(f"✅ Successfully parsed image for user {current_user.id}")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Unexpected error in image parse: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "detail": "Erro interno ao processar imagem.",
+                "code": "INTERNAL_ERROR"
+            }
+        )
+
+
+@router.post("/smart-parse-audio", response_model=SmartTransactionResponse)
+async def parse_audio_transaction(
+    audio: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Parse transaction data from an audio file using AI (transcription + parsing).
+    Supports: MP3, WAV, M4A, OGG
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🎤 Audio parse request from user {current_user.id}, filename: {audio.filename}")
+    
+    if not audio.content_type or not audio.content_type.startswith('audio/'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "detail": "Arquivo deve ser um áudio válido (MP3, WAV, M4A, OGG).",
+                "code": "INVALID_FILE_TYPE"
+            }
+        )
+    
+    try:
+        parser = get_smart_parser()
+        
+        if not parser.enabled:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "detail": "Serviço de AI não está disponível no momento.",
+                    "code": "AI_SERVICE_UNAVAILABLE"
+                }
+            )
+        
+        audio_bytes = await audio.read()
+        result = parser.parse_audio(audio_bytes, audio.content_type)
+        
+        if not result:
+            logger.warning(f"⚠️ Failed to parse audio from user {current_user.id}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "detail": "Não foi possível entender o áudio. Tente gravar novamente com clareza.",
+                    "code": "PARSE_FAILED"
+                }
+            )
+        
+        logger.info(f"✅ Successfully parsed audio for user {current_user.id}")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Unexpected error in audio parse: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "detail": "Erro interno ao processar áudio.",
                 "code": "INTERNAL_ERROR"
             }
         )
