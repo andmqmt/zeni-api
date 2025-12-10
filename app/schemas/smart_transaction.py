@@ -10,12 +10,10 @@ class SmartTransactionRequest(BaseModel):
 
 
 class SmartTransactionResponse(BaseModel):
-    """Parsed transaction data from natural language."""
     description: str
     amount: Decimal
     type: Literal["income", "expense"]
     transaction_date: date
-    category_name: Optional[str] = None
     confidence: float = Field(..., ge=0, le=1, description="Confidence score of the parsing")
     
     class Config:
@@ -25,7 +23,6 @@ class SmartTransactionResponse(BaseModel):
                 "amount": 25.50,
                 "type": "expense",
                 "transaction_date": "2025-11-11",
-                "category_name": "Transporte",
                 "confidence": 0.95
             }
         }
