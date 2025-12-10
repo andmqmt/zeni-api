@@ -174,6 +174,198 @@ Respond ONLY with valid JSON (no markdown, no explanation):
         except Exception as e:
             logger.error(f"❌ Failed to parse command '{command[:30]}...': {e}")
             return None
+    
+    def parse_image(self, image_bytes: bytes, content_type: str) -> Optional[SmartTransactionResponse]:
+        """
+        Parse transaction data from an image using AI vision.
+        
+        Args:
+            image_bytes: Image file bytes
+            content_type: MIME type (image/jpeg, image/png, etc)
+            
+        Returns:
+            SmartTransactionResponse or None if parsing fails
+        """
+        if not self.enabled:
+            logger.warning("⚠️ AI parser is disabled")
+            return None
+        
+        if self.provider != "gemini":
+            return None
+        
+        try:
+            logger.info(f"📸 Parsing image ({content_type})")
+            
+            today = date.today()
+            prompt = f"""Analyze this image and extract transaction data.
+
+Today's date: {today.isoformat()}
+
+Look for:
+- Receipts, invoices, notes with amounts
+- Product/service descriptions
+- Prices/amounts
+- Date information
+
+Extract and respond ONLY with valid JSON (no markdown):
+{{"description": "...", "amount": 0.0, "type": "expense", "transaction_date": "YYYY-MM-DD", "confidence": 0.0}}
+
+Rules:
+- description: What was purchased (max 50 chars)
+- amount: Total value (positive number)
+- type: "expense" for purchases, "income" for received payments
+- transaction_date: Date in YYYY-MM-DD (use today if not visible)
+- confidence: How confident you are (0-1)"""
+
+            response = self.model.generate_content(
+                [prompt, {"mime_type": content_type, "data": image_bytes}],
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.1,
+                    max_output_tokens=200,
+                )
+            )
+            
+            if not response.candidates or not response.candidates[0].content.parts:
+                logger.warning("⚠️ AI response blocked for image")
+                return None
+            
+            json_text = response.text.strip()
+            json_text = re.sub(r'^```json\s*', '', json_text)
+            json_text = re.sub(r'\s*```$', '', json_text)
+            json_text = json_text.strip()
+            
+            import json
+            data = json.loads(json_text)
+            
+            description = str(data.get('description', 'Transação'))[:255]
+            if not description.strip():
+                description = 'Transação'
+            
+            amount = Decimal(str(data.get('amount', 0)))
+            if amount <= 0:
+                return None
+            
+            transaction_type = data.get('type', 'expense')
+            if transaction_type not in ['income', 'expense']:
+                return None
+            
+            date_str = data.get('transaction_date', today.isoformat())
+            try:
+                transaction_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except Exception:
+                transaction_date = today
+            
+            confidence = float(data.get('confidence', 0.5))
+            confidence = max(0.0, min(1.0, confidence))
+            
+            result = SmartTransactionResponse(
+                description=description,
+                amount=amount,
+                type=transaction_type,
+                transaction_date=transaction_date,
+                confidence=confidence
+            )
+            
+            logger.info(f"✅ Parsed image: {result.description} (R${result.amount})")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to parse image: {e}", exc_info=True)
+            return None
+    
+    def parse_audio(self, audio_bytes: bytes, content_type: str) -> Optional[SmartTransactionResponse]:
+        """
+        Parse transaction data from audio using AI (transcription + parsing).
+        
+        Args:
+            audio_bytes: Audio file bytes
+            content_type: MIME type (audio/mpeg, audio/wav, etc)
+            
+        Returns:
+            SmartTransactionResponse or None if parsing fails
+        """
+        if not self.enabled:
+            logger.warning("⚠️ AI parser is disabled")
+            return None
+        
+        if self.provider != "gemini":
+            return None
+        
+        try:
+            logger.info(f"🎤 Parsing audio ({content_type})")
+            
+            today = date.today()
+            prompt = f"""Listen to this audio and extract transaction information.
+
+Today's date: {today.isoformat()}
+
+The person is describing a transaction (purchase, payment received, expense, etc).
+
+Extract and respond ONLY with valid JSON (no markdown):
+{{"description": "...", "amount": 0.0, "type": "expense", "transaction_date": "YYYY-MM-DD", "confidence": 0.0}}
+
+Rules:
+- description: What they mentioned (max 50 chars)
+- amount: Numeric value they said (positive number)
+- type: "expense" for spending, "income" for receiving
+- transaction_date: Date in YYYY-MM-DD ("hoje"=today, "ontem"=yesterday, or as mentioned)
+- confidence: How confident you are (0-1)"""
+
+            response = self.model.generate_content(
+                [prompt, {"mime_type": content_type, "data": audio_bytes}],
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.1,
+                    max_output_tokens=200,
+                )
+            )
+            
+            if not response.candidates or not response.candidates[0].content.parts:
+                logger.warning("⚠️ AI response blocked for audio")
+                return None
+            
+            json_text = response.text.strip()
+            json_text = re.sub(r'^```json\s*', '', json_text)
+            json_text = re.sub(r'\s*```$', '', json_text)
+            json_text = json_text.strip()
+            
+            import json
+            data = json.loads(json_text)
+            
+            description = str(data.get('description', 'Transação'))[:255]
+            if not description.strip():
+                description = 'Transação'
+            
+            amount = Decimal(str(data.get('amount', 0)))
+            if amount <= 0:
+                return None
+            
+            transaction_type = data.get('type', 'expense')
+            if transaction_type not in ['income', 'expense']:
+                return None
+            
+            date_str = data.get('transaction_date', today.isoformat())
+            try:
+                transaction_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except Exception:
+                transaction_date = today
+            
+            confidence = float(data.get('confidence', 0.5))
+            confidence = max(0.0, min(1.0, confidence))
+            
+            result = SmartTransactionResponse(
+                description=description,
+                amount=amount,
+                type=transaction_type,
+                transaction_date=transaction_date,
+                confidence=confidence
+            )
+            
+            logger.info(f"✅ Parsed audio: {result.description} (R${result.amount})")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to parse audio: {e}", exc_info=True)
+            return None
 
 
 # Singleton instance
