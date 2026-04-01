@@ -3,6 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import ORJSONResponse
 
 from app.config import settings, Base, engine
 from app.api import api_router
@@ -11,7 +12,8 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.app_name,
-    version="1.0.0"
+    version="1.0.0",
+    default_response_class=ORJSONResponse,
 )
 
 # Configure CORS with restricted origins for production

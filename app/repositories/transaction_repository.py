@@ -36,9 +36,6 @@ class TransactionRepository:
             .all()
         )
 
-    def get_all(self, skip: int = 0, limit: int = 100) -> List[Transaction]:
-        return self.db.query(Transaction).order_by(Transaction.transaction_date.desc()).offset(skip).limit(limit).all()
-
     def update(self, transaction_id: int, updates: dict) -> Optional[Transaction]:
         transaction = self.get_by_id(transaction_id)
         if not transaction:
@@ -69,16 +66,3 @@ class TransactionRepository:
                 Transaction.user_id == user_id
             )
         ).order_by(Transaction.transaction_date.asc()).all()
-
-    def get_by_date_range(self, start_date: date, end_date: date) -> List[Transaction]:
-        return self.db.query(Transaction).filter(
-            and_(
-                Transaction.transaction_date >= start_date,
-                Transaction.transaction_date <= end_date
-            )
-        ).order_by(Transaction.transaction_date.asc()).all()
-
-    def get_by_type(self, transaction_type: TransactionType, skip: int = 0, limit: int = 100) -> List[Transaction]:
-        return self.db.query(Transaction).filter(
-            Transaction.type == transaction_type
-        ).order_by(Transaction.transaction_date.desc()).offset(skip).limit(limit).all()

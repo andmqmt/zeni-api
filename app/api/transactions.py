@@ -50,27 +50,14 @@ def list_transactions(
     )
 
 
-@router.get("/balance/daily", response_model=List[DailyBalanceResponse])
+@router.get("/daily-balance", response_model=List[DailyBalanceResponse])
 def get_daily_balance(
     year: int = Query(..., ge=2000, le=2100),
     month: int = Query(..., ge=1, le=12),
     current_user: User = Depends(get_current_user),
     service: TransactionService = Depends(get_transaction_service)
 ):
-    return service.calculate_daily_balance(year, month, current_user)
-
-
-@router.get("/daily-balance", response_model=List[DailyBalanceResponse])
-def get_daily_balance_alias(
-    year: int = Query(..., ge=2000, le=2100),
-    month: int = Query(..., ge=1, le=12),
-    current_user: User = Depends(get_current_user),
-    service: TransactionService = Depends(get_transaction_service)
-):
-    """Alias para compatibilidade: /transactions/daily-balance
-
-    Retorna o saldo diário do mês (um objeto por dia), cumulativo.
-    """
+    """Retorna o saldo diário do mês (um objeto por dia com transações), cumulativo."""
     return service.calculate_daily_balance(year, month, current_user)
 
 

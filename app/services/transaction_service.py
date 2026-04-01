@@ -71,61 +71,61 @@ class TransactionService:
             
             transactions = self.repository.get_by_date_range_and_user(start_date, end_date, user.id)
             
-            daily_balances = []
-            current_balance = Decimal("0.00")
+            # Se não há transações no mês, retorna lista vazia (payload leve)
+            if not transactions:
+                return []
             
-            transactions_by_date = {}
-            for transaction in transactions:
-                if transaction.transaction_date not in transactions_by_date:
-                    transactions_by_date[transaction.transaction_date] = []
-                transactions_by_date[transaction.transaction_date].append(transaction)
-            
-            current_date = start_date
             # Capturar preferências do usuário
             bad_t = user.bad_threshold
             ok_t = user.ok_threshold
             good_t = user.good_threshold
 
             # Regra de negócio garante thresholds crescentes no momento da configuração.
-            # Se houver qualquer inconsistência (ex: manipulação direta no banco), marcamos como 'unconfigured'.
             if (
                 bad_t is not None and ok_t is not None and good_t is not None and
                 not (bad_t <= ok_t <= good_t)
             ):
-                bad_t = ok_t = good_t = None  # Força status 'unconfigured'
+                bad_t = ok_t = good_t = None
 
+            # Agrupar transações por data
+            transactions_by_date: dict[date, list] = {}
+            for transaction in transactions:
+                transactions_by_date.setdefault(transaction.transaction_date, []).append(transaction)
+            
+            daily_balances = []
+            current_balance = Decimal("0.00")
+            current_date = start_date
+            
             while current_date <= end_date:
-                if current_date in transactions_by_date:
+                has_transactions = current_date in transactions_by_date
+                
+                if has_transactions:
                     for transaction in transactions_by_date[current_date]:
                         if transaction.type == TransactionType.INCOME:
                             current_balance += transaction.amount
                         else:
                             current_balance -= transaction.amount
 
-                # Determinar status com base nas preferências (FORA do if)
-                status = None
-                if bad_t is None or ok_t is None or good_t is None:
-                    status = "unconfigured"
-                else:
-                    bal = float(current_balance)
-                    # Lógica: valor <= threshold indica nível
-                    # Exemplo: bad=3000, ok=5000, good=8000
-                    # - balance <= 3000 => red (ruim)
-                    # - balance <= 5000 => yellow (médio)
-                    # - balance <= 8000 => green (bom)
-                    # - balance > 8000 => green (também bom)
-                    if bal <= bad_t:
-                        status = "red"
-                    elif bal <= ok_t:
-                        status = "yellow"
+                    # Determinar status
+                    if bad_t is None or ok_t is None or good_t is None:
+                        status = "unconfigured"
                     else:
-                        status = "green"
+                        bal = float(current_balance)
+                        if bal <= bad_t:
+                            status = "red"
+                        elif bal <= ok_t:
+                            status = "yellow"
+                        else:
+                            status = "green"
 
-                daily_balances.append({
-                    "date": current_date.isoformat(),
-                    "balance": float(current_balance),
-                    "status": status,
-                })
+                    daily_balances.append({
+                        "date": current_date.isoformat(),
+                        "balance": float(current_balance),
+                        "status": status,
+                    })
+                else:
+                    # Dia sem transações: acumula saldo mas não envia no payload
+                    pass
                 
                 current_date += timedelta(days=1)
             
