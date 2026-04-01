@@ -4,12 +4,12 @@ Smart Transaction Parser Service using Google Gemini AI.
 Parses natural language commands into structured transaction data.
 """
 
+import json
 import logging
 import re
 from typing import Optional
 from datetime import date, datetime
 from decimal import Decimal
-import google.generativeai as genai
 
 from app.config import settings
 from app.schemas.smart_transaction import SmartTransactionResponse
@@ -26,20 +26,24 @@ class SmartTransactionParser:
         self.api_key = settings.ai_provider_api_key
         self.enabled = bool(self.api_key)
         
-        if self.enabled and self.provider == "gemini":
-            try:
-                genai.configure(api_key=self.api_key)
-                try:
-                    self.model = genai.GenerativeModel('models/gemini-2.5-pro')
-                    logger.info("✅ Gemini 2.5 Pro enabled for smart transactions")
-                except Exception:
-                    self.model = genai.GenerativeModel('models/gemini-2.5-flash')
-                    logger.info("✅ Gemini 2.5 Flash enabled for smart transactions")
-            except Exception as e:
-                logger.error(f"❌ Failed to initialize Gemini: {e}")
-                self.enabled = False
-        else:
-            logger.info("ℹ️ AI parser disabled")
+        self._genai = None
+        self.model = None
+        if not self.enabled:
+            logger.info("ℹ️ AI parser disabled (no API key)")
+
+    def _init_genai(self):
+        """Lazy-load google.generativeai on first AI call (saves ~1-2s cold start)."""
+        if self._genai is not None:
+            return
+        import google.generativeai as genai
+        self._genai = genai
+        genai.configure(api_key=self.api_key)
+        try:
+            self.model = genai.GenerativeModel('models/gemini-2.5-pro')
+            logger.info("✅ Gemini 2.5 Pro loaded")
+        except Exception:
+            self.model = genai.GenerativeModel('models/gemini-2.5-flash')
+            logger.info("✅ Gemini 2.5 Flash loaded")
     
     def parse_command(self, command: str) -> Optional[SmartTransactionResponse]:
         """
@@ -75,6 +79,7 @@ class SmartTransactionParser:
         """Internal method to parse using AI provider."""
         if self.provider != "gemini":
             return None
+        self._init_genai()
         
         today = date.today()
         prompt = f"""Parse this transaction command into structured data.
@@ -99,7 +104,7 @@ Respond ONLY with valid JSON (no markdown, no explanation):
         try:
             response = self.model.generate_content(
                 prompt,
-                generation_config=genai.types.GenerationConfig(
+                generation_config=self._genai.types.GenerationConfig(
                     temperature=0.1,
                     max_output_tokens=200,
                 )
@@ -119,7 +124,6 @@ Respond ONLY with valid JSON (no markdown, no explanation):
             json_text = json_text.strip()
             
             # Parse JSON
-            import json
             data = json.loads(json_text)
             
             logger.info(f"📊 Parsed JSON data: {data}")
@@ -194,6 +198,7 @@ Respond ONLY with valid JSON (no markdown, no explanation):
             return None
         
         try:
+            self._init_genai()
             logger.info(f"📸 Parsing image ({content_type})")
             
             today = date.today()
@@ -219,7 +224,7 @@ Rules:
 
             response = self.model.generate_content(
                 [prompt, {"mime_type": content_type, "data": image_bytes}],
-                generation_config=genai.types.GenerationConfig(
+                generation_config=self._genai.types.GenerationConfig(
                     temperature=0.1,
                     max_output_tokens=200,
                 )
@@ -292,6 +297,7 @@ Rules:
             return None
         
         try:
+            self._init_genai()
             logger.info(f"🎤 Parsing audio ({content_type})")
             
             today = date.today()
@@ -313,7 +319,7 @@ Rules:
 
             response = self.model.generate_content(
                 [prompt, {"mime_type": content_type, "data": audio_bytes}],
-                generation_config=genai.types.GenerationConfig(
+                generation_config=self._genai.types.GenerationConfig(
                     temperature=0.1,
                     max_output_tokens=200,
                 )

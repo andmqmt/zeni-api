@@ -61,77 +61,66 @@ class TransactionService:
         return self.repository.delete(transaction_id)
 
     def calculate_daily_balance(self, year: int, month: int, user: User) -> List[Dict]:
-        try:
-            start_date = date(year, month, 1)
-            
-            if month == 12:
-                end_date = date(year + 1, 1, 1) - timedelta(days=1)
-            else:
-                end_date = date(year, month + 1, 1) - timedelta(days=1)
-            
-            transactions = self.repository.get_by_date_range_and_user(start_date, end_date, user.id)
-            
-            # Se não há transações no mês, retorna lista vazia (payload leve)
-            if not transactions:
-                return []
-            
-            # Capturar preferências do usuário
-            bad_t = user.bad_threshold
-            ok_t = user.ok_threshold
-            good_t = user.good_threshold
+        start_date = date(year, month, 1)
+        end_date = date(year, month + 1, 1) - timedelta(days=1) if month < 12 else date(year, 12, 31)
 
-            # Regra de negócio garante thresholds crescentes no momento da configuração.
-            if (
-                bad_t is not None and ok_t is not None and good_t is not None and
-                not (bad_t <= ok_t <= good_t)
-            ):
-                bad_t = ok_t = good_t = None
+        # Lightweight query: only (date, amount, type) — no ORM overhead
+        rows = self.repository.get_balance_data(start_date, end_date, user.id)
 
-            # Agrupar transações por data
-            transactions_by_date: dict[date, list] = {}
-            for transaction in transactions:
-                transactions_by_date.setdefault(transaction.transaction_date, []).append(transaction)
-            
-            daily_balances = []
-            current_balance = Decimal("0.00")
-            current_date = start_date
-            
-            while current_date <= end_date:
-                has_transactions = current_date in transactions_by_date
-                
-                if has_transactions:
-                    for transaction in transactions_by_date[current_date]:
-                        if transaction.type == TransactionType.INCOME:
-                            current_balance += transaction.amount
-                        else:
-                            current_balance -= transaction.amount
+        if not rows:
+            return []
 
-                    # Determinar status
-                    if bad_t is None or ok_t is None or good_t is None:
-                        status = "unconfigured"
+        # User thresholds
+        bad_t = user.bad_threshold
+        ok_t = user.ok_threshold
+        good_t = user.good_threshold
+
+        if (
+            bad_t is not None and ok_t is not None and good_t is not None
+            and not (bad_t <= ok_t <= good_t)
+        ):
+            bad_t = ok_t = good_t = None
+
+        has_thresholds = bad_t is not None and ok_t is not None and good_t is not None
+
+        # Group by date using dict
+        by_date: dict[date, list] = {}
+        for tx_date, amount, tx_type in rows:
+            by_date.setdefault(tx_date, []).append((amount, tx_type))
+
+        daily_balances = []
+        current_balance = Decimal("0.00")
+        current_date = start_date
+
+        while current_date <= end_date:
+            day_txs = by_date.get(current_date)
+
+            if day_txs is not None:
+                for amount, tx_type in day_txs:
+                    if tx_type == TransactionType.INCOME:
+                        current_balance += amount
                     else:
-                        bal = float(current_balance)
-                        if bal <= bad_t:
-                            status = "red"
-                        elif bal <= ok_t:
-                            status = "yellow"
-                        else:
-                            status = "green"
+                        current_balance -= amount
 
-                    daily_balances.append({
-                        "date": current_date.isoformat(),
-                        "balance": float(current_balance),
-                        "status": status,
-                    })
+                # Determine status
+                if not has_thresholds:
+                    status = "unconfigured"
                 else:
-                    # Dia sem transações: acumula saldo mas não envia no payload
-                    pass
-                
-                current_date += timedelta(days=1)
-            
-            return daily_balances
-        except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Erro ao calcular saldo diário: {e}", exc_info=True)
-            raise
+                    bal = float(current_balance)
+                    if bal <= bad_t:
+                        status = "red"
+                    elif bal <= ok_t:
+                        status = "yellow"
+                    else:
+                        status = "green"
+
+                daily_balances.append({
+                    "date": current_date.isoformat(),
+                    "balance": float(current_balance),
+                    "status": status,
+                })
+
+            current_date += timedelta(days=1)
+
+        return daily_balances
+
